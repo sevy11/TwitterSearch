@@ -7,22 +7,29 @@
 //
 
 #import "ViewController.h"
+#import "TweetCell.h"
+#import "AuthenticationManager.h"
+#import "TwitterManager.h"
+#import "Twitter.h"
 #import <STTwitter/STTwitter.h>
 
 static NSString * const kTWITTER_CONSUMER_KEY = @"fx95oKhMHYgytSBmiAqQ";
 static NSString * const kTWITTER_CONSUMER_SEC = @"0zfaijLMWMYTwVosdqFTL3k58JhRjZNxd2q0i9cltls";
 static NSString * const kOAUTH_TOKEN = @"2305278770-GGw8dQQg3o5Vqfx9xHpUgJ0CDUe3BoNmUNeWZBg";
 static NSString * const kOAUTH_SECRET = @"iEzxeJjEPnyODVcoDYt5MVvrg90Jx2TOetGdNeol6PeYp";
+static NSString * const kCell = @"Cell";
 
-static NSString * const sevykTWITTER_CONSUMER_KEY = @"0OAfrSr5UaaVtxZskKvapJ9N0";
-static NSString * const sevykTWITTER_CONSUMER_SEC = @"hq4QByDl3Cgf3nDxPMsRRizKTWpzJbuApfguUhcmeiV6d2nDHc";
-static NSString * const sevykOAUTH_TOKEN = @"72962447-w4LPdlf6Agw7xslFFKELEyJvWC7HAcmT4POK6adB2";
-static NSString * const sevykOAUTH_SECRET = @"unZ8LaKjAXxIy8zrRx7KHSfhlm8MrFMRqFgdG5aeqiT1A";
+@interface ViewController ()<STTwitterRequestProtocol,
+TwitterManagerDelegate,
+UITableViewDataSource,
+UITableViewDelegate>
 
-@interface ViewController ()<STTwitterRequestProtocol>
+@property (weak, nonatomic) IBOutlet UITableView *tableView;
 
-@property STTwitterAPI *twitter;
+@property (strong, nonatomic) NSArray *fullTweets;
+@property (strong, nonatomic) STTwitterAPI *twitter;
 @property BOOL inlinePhoto;
+
 @end
 
 @implementation ViewController
@@ -31,59 +38,82 @@ static NSString * const sevykOAUTH_SECRET = @"unZ8LaKjAXxIy8zrRx7KHSfhlm8MrFMRqF
 {
     [super viewDidLoad];
 
-    self.inlinePhoto = NO;
+    self.tableView.delegate = self;
     
-    self.twitter = [STTwitterAPI twitterAPIWithOAuthConsumerKey:kTWITTER_CONSUMER_KEY consumerSecret:kTWITTER_CONSUMER_SEC oauthToken:kOAUTH_TOKEN oauthTokenSecret:kOAUTH_SECRET];
+    self.inlinePhoto = NO;
+    self.fullTweets = [NSArray new];
+
+
+    self.twitter = [STTwitterAPI twitterAPIWithOAuthConsumerKey:kTWITTER_CONSUMER_KEY consumerSecret:kTWITTER_CONSUMER_SEC oauthToken:kOAUTH_TOKEN oauthTokenSecret:kOAUTH_SECRET];//    [self.twitter
+
     [self.twitter verifyCredentialsWithUserSuccessBlock:^(NSString *username, NSString *userID) {
-        NSLog(@"success, u:%@ ID:%@", username, userID);
-
-
-
+        NSLog(@"twitter user: %@", username);
     } errorBlock:^(NSError *error) {
         NSLog(@"error: %@", error);
-        
     }];
-    //NSString *geocodeStr = @"42.736948,-84.486663,5mi";
-    NSString *countStr = @"5";
-    [self.twitter getSearchTweetsWithQuery:@"josh+Jackson" geocode:nil count:countStr successBlock:^(NSDictionary *searchMetadata, NSArray *statuses) {
-        NSLog(@"results: %@", statuses);
-        NSLog(@"meta: %@", searchMetadata);
 
-        for (NSDictionary *dict in statuses)
-        {
-            NSDictionary *userData = dict[@"user"];
-            NSDictionary *entity = dict[@"entities"];
-
-            if (entity)
-            {
-                NSArray *mediaArr = entity[@"media"];
-                NSDictionary *media = [mediaArr firstObject];
-                NSString *inlineImage = media[@"media_url_https"];
-                NSLog(@"inline Image: %@", inlineImage);
-                self.inlinePhoto = YES;
-            }
-            NSString *createdAt = userData[@"created_at"];
-            NSString *location = userData[@"location"];
-            NSString *profileImageURLStr = userData[@"profile_image_url"];
-            NSString *screenName = userData[@"screen_name"];
-            NSString *timeZone = userData[@"time_zone"];
-            NSString *utcOffset = userData[@"utc_offset"];
-            NSString *tweetText = dict[@"text"];
-            NSString *tweetID = dict[@"id_str"];
-            NSString *userID = userData[@"id_str"];
-            NSLog(@"screenName: %@, time: %@, loc: %@, image: %@, timeZone: %@, utcOff: %@, text: %@, TweetID: %@, userID: %@", screenName, createdAt, location, profileImageURLStr, timeZone, utcOffset, tweetText, tweetID, userID);
-        }
-
-    } errorBlock:^(NSError *error)  {
-        NSLog(@"error: %@", error);
+    TwitterManager *twitter = [[TwitterManager alloc]init];
+    twitter.delegate = self;
+    [twitter loadTweetsWithSearch:self.twitter andSearch:@"izzo" andCount:@"3" withSuccess:^(BOOL success, NSError *error) {
+        TwitterManager *tweet = [TwitterManager new];
+        NSLog(@"from VC: %@", tweet.tweets);
     }];
 
 }
 
--(void)viewDidAppear:(BOOL)animated
+-(void)didSearchTwitter:(NSArray *)searchTerm
+{
+    self.fullTweets = searchTerm;
+    TwitterManager *tweet = [TwitterManager new];
+    NSLog(@"from VC: %@", self.fullTweets);//this works but want to parase data on model, not here
+}
+
+-(void)parseData:(NSArray *)inputArray
+{
+    self.fullTweets = inputArray;
+    Twitter * twit = [Twitter new];
+    NSLog(@"username: %@", twit.screeName);
+}
+
+
+- (IBAction)onButtonTap:(UIButton *)sender
+{
+//    TwitterManager *twitM = [TwitterManager new];
+//    NSLog(@"saerches: %@", twitM.tweets);
+}
+
+-(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+{
+    return self.fullTweets.count;
+}
+-(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
 
+    TweetCell *cell = [tableView dequeueReusableCellWithIdentifier:kCell forIndexPath:indexPath];
+    Twitter *twit = [self.fullTweets objectAtIndex:indexPath.row];
+    cell.screenName.text = twit.screeName;
+    cell.timeLabel.text = twit.tweetID;
+    cell.textLabel.text = twit.tweetText;
+
+    return cell;
 }
 
+
+#pragma mark -- helpers
+
+-(void)loadTweetsWithSearch:(NSString *)search andCount:(NSString *)count withSuccess:(resultBlockWithSuccess)success
+{
+    STTwitterAPI *tweet = [[STTwitterAPI alloc]init];
+    [tweet getSearchTweetsWithQuery:search geocode:nil count:count successBlock:^(NSDictionary *searchMetadata, NSArray *statuses) {
+
+        if (statuses)
+        {
+            NSLog(@"results from twitter manager: %@", statuses);
+            //self.tweets = statuses;
+        }
+    } errorBlock:^(NSError *error) {
+        NSLog(@"error: %@", error);
+    }];
+}
 
 @end
