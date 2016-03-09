@@ -11,8 +11,12 @@
 @interface Twitter : NSObject
 
 @property(nonatomic, strong)NSString *createdAt;
+@property(nonatomic, strong)NSString *timeStamp;
+
 @property(nonatomic, strong)NSString *location;
 @property(nonatomic, strong)NSString *profileImage;
+@property(nonatomic, strong)NSData *profileData;
+
 @property(nonatomic, strong)NSString *screeName;
 @property(nonatomic, strong)NSString *timezone;
 @property(nonatomic, strong)NSString *uTCOffset;

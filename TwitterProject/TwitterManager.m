@@ -30,18 +30,20 @@
 
         if (statuses)
         {
-            //NSLog(@"results from twitter manager: %@", statuses);
-            [self parseTwitterArray:statuses];//this is working to parse data from array but it's stuck in this class
-            [self.delegate didSearchTwitter:statuses];
-            //[self.delegate parseData:statuses];
+            //parse tweets and assign to delegate property
+            //NSLog(@"array formthe raw: %@", statuses);
+            NSMutableArray *mut = [NSMutableArray arrayWithArray:statuses];
+            NSMutableArray *oldArray = [self parseTwitterArray:mut];
 
+            [self.delegate didSearchTwitter:oldArray];
+    
         }
     } errorBlock:^(NSError *error) {
         NSLog(@"error: %@", error);
     }];
 }
 
--(void)parseTwitterArray:(NSArray *)tweets
+-(NSMutableArray *)parseTwitterArray:(NSMutableArray *)tweets
 {
     Twitter *tweet = [Twitter new];
 
@@ -55,12 +57,16 @@
             NSArray *mediaArr = entity[@"media"];
             NSDictionary *media = [mediaArr firstObject];
             NSString *inlineImage = media[@"media_url_https"];
-            NSLog(@"inline Image: %@", inlineImage);
+            if (inlineImage)
+            {
+                [self stringURLToData:inlineImage];
+            }
             tweet.inlinePhoto = YES;
         }
-        tweet.createdAt = userData[@"created_at"];
+
+        NSString *created = dict[@"created_at"];
         tweet.location = userData[@"location"];
-        tweet.profileImage = userData[@"profile_image_url"];
+        NSString *profilePic = userData[@"profile_image_url"];
         tweet.screeName = userData[@"screen_name"];
         tweet.timezone = userData[@"time_zone"];
         tweet.uTCOffset = userData[@"utc_offset"];
@@ -68,54 +74,81 @@
         tweet.tweetID = dict[@"id_str"];
         tweet.userID = userData[@"id_str"];
 
+        NSData *profileData = [self stringURLToData:profilePic];
+        [self stringURLToData:tweet.profileImage];
+        NSString *timeFromNow = [self createdAtToTimeFromNow:created];
+        tweet.timeStamp = timeFromNow;
+        tweet.profileData = profileData;
+
         [self.tweets addObject:tweet];
-         NSLog(@"screenName: %@, time: %@, loc: %@, image: %@, timeZone: %@, utcOff: %@, text: %@, TweetID: %@, userID: %@", tweet.screeName, tweet.createdAt, tweet.location, tweet.profileImage, tweet.timezone, tweet.uTCOffset, tweet.tweetText, tweet.tweetID, tweet.userID);
-        //[self.delegate parseData:tweets];
-        
     }
+    
+    [self.delegate parseData:self.tweets];
+
+    return self.tweets;
 }
 
+-(NSData *)stringURLToData:(NSString *)urlString
+{
+    NSURL *url = [NSURL URLWithString:urlString];
+    NSData *data = [NSData dataWithContentsOfURL:url];
 
-//NSString *geocodeStr = @"42.736948,-84.486663,5mi";
-//    NSString *countStr = @"5";
-//    [self.twitter getSearchTweetsWithQuery:@"josh+Jackson" geocode:nil count:countStr successBlock:^(NSDictionary *searchMetadata, NSArray *statuses) {
-//        NSLog(@"results: %@", statuses);
-//        NSLog(@"meta: %@", searchMetadata);
-//
-//        for (NSDictionary *dict in statuses)
-//        {
-//            NSDictionary *userData = dict[@"user"];
-//            NSDictionary *entity = dict[@"entities"];
-//
-//            if (entity)
-//            {
-//                NSArray *mediaArr = entity[@"media"];
-//                NSDictionary *media = [mediaArr firstObject];
-//                NSString *inlineImage = media[@"media_url_https"];
-//                NSLog(@"inline Image: %@", inlineImage);
-//                self.inlinePhoto = YES;
-//            }
-//            NSString *createdAt = userData[@"created_at"];
-//            NSString *location = userData[@"location"];
-//            NSString *profileImageURLStr = userData[@"profile_image_url"];
-//            self.screenName = userData[@"screen_name"];
-//            NSString *timeZone = userData[@"time_zone"];
-//            NSString *utcOffset = userData[@"utc_offset"];
-//            NSString *tweetText = dict[@"text"];
-//            NSString *tweetID = dict[@"id_str"];
-//            NSString *userID = userData[@"id_str"];
-//            NSLog(@"screenName: %@, time: %@, loc: %@, image: %@, timeZone: %@, utcOff: %@, text: %@, TweetID: %@, userID: %@", self.screenName, createdAt, location, profileImageURLStr, timeZone, utcOffset, tweetText, tweetID, userID);
-//
-//            [self.tableView reloadData];
-//
-//        }
-//
-//    } errorBlock:^(NSError *error)  {
-//        NSLog(@"error: %@", error);
-//    }];
-@end
+    return data;
+}
+-(NSString *)createdAtToTimeFromNow:(NSString *)createdAt
+{
+    NSDateFormatter *formatter = [NSDateFormatter new];
+    [formatter setDateFormat:@"EEE MMM dd HH:mm:ss Z yyyy"];
+    NSDate *tweetDate = [NSDate new];
+    tweetDate = [formatter dateFromString:createdAt];
+    NSDate *nowDate = [NSDate date];
+    NSDateFormatter *format = [NSDateFormatter new];
+    [format setDateFormat:@"EEE MMM dd HH:mm:ss Z yyyy"];
+    float timingDiff = [nowDate timeIntervalSinceDate:tweetDate];
 
-
-
-
-
+    if (timingDiff < 1)
+    {
+        NSString *sec = [NSString stringWithFormat:@"Error"];
+        return sec;
+    }
+    else if (timingDiff < 60)
+    {
+        NSString *min = [NSString stringWithFormat:@"%fsec",timingDiff];
+        return min;
+    }
+    else if (timingDiff < 3600)
+    {
+        int diffRound = round(timingDiff / 60);
+        NSString *hour = [NSString stringWithFormat:@"%dmin", diffRound];
+        return hour;
+    }
+    else if (timingDiff < 86400)
+    {
+        int diffRound = round(timingDiff / 60 / 60);
+        NSString *day = [NSString stringWithFormat:@"%dh", diffRound];
+        return day;
+    }
+    else if (timingDiff < 2629743)
+    {
+        int diffRound = round(timingDiff / 60 / 60 / 24);
+        NSString *week = [NSString stringWithFormat:@"%ddays", diffRound];
+        return week;
+    }
+    else if (timingDiff < 18408201)
+    {
+        int diffRound = round(timingDiff / 60 / 60 / 24 / 7);
+        NSString *month = [NSString stringWithFormat:@"%dweeks", diffRound];
+        return month;
+    }
+    else
+    {
+        NSString *overWeek = [NSString stringWithFormat:@"> week"];
+        return overWeek;
+    }
+}
+    @end
+    
+    
+    
+    
+    

@@ -8,7 +8,6 @@
 
 #import "ViewController.h"
 #import "TweetCell.h"
-#import "AuthenticationManager.h"
 #import "TwitterManager.h"
 #import "Twitter.h"
 #import <STTwitter/STTwitter.h>
@@ -21,13 +20,24 @@ static NSString * const kCell = @"Cell";
 
 @interface ViewController ()<STTwitterRequestProtocol,
 TwitterManagerDelegate,
+TweetCellDelegate,
 UITableViewDataSource,
-UITableViewDelegate>
+UITableViewDelegate,
+UISearchBarDelegate>
 
 @property (weak, nonatomic) IBOutlet UITableView *tableView;
 
-@property (strong, nonatomic) NSArray *fullTweets;
+@property (strong, nonatomic) NSMutableArray *parsedTwitterArray;
 @property (strong, nonatomic) STTwitterAPI *twitter;
+
+@property (strong, nonatomic) NSString *selectedTweet;
+@property (strong, nonatomic) NSString *selectedTweetID;
+@property (strong, nonatomic) NSString *selectedUserID;
+
+@property (strong, nonatomic) NSString *searchTerm;
+@property (strong, nonatomic) UISearchBar *searchBar;
+
+
 @property BOOL inlinePhoto;
 
 @end
@@ -39,10 +49,15 @@ UITableViewDelegate>
     [super viewDidLoad];
 
     self.tableView.delegate = self;
-    
-    self.inlinePhoto = NO;
-    self.fullTweets = [NSArray new];
+    self.automaticallyAdjustsScrollViewInsets = NO;
+    self.parsedTwitterArray = [NSMutableArray new];
 
+    self.inlinePhoto = NO;
+
+    self.searchBar = [UISearchBar new];
+    self.searchBar.delegate = self;
+    self.searchBar.placeholder = @"Search Twitter";
+    [_searchBar becomeFirstResponder];
 
     self.twitter = [STTwitterAPI twitterAPIWithOAuthConsumerKey:kTWITTER_CONSUMER_KEY consumerSecret:kTWITTER_CONSUMER_SEC oauthToken:kOAUTH_TOKEN oauthTokenSecret:kOAUTH_SECRET];//    [self.twitter
 
@@ -52,68 +67,93 @@ UITableViewDelegate>
         NSLog(@"error: %@", error);
     }];
 
-    TwitterManager *twitter = [[TwitterManager alloc]init];
-    twitter.delegate = self;
-    [twitter loadTweetsWithSearch:self.twitter andSearch:@"izzo" andCount:@"3" withSuccess:^(BOOL success, NSError *error) {
-        TwitterManager *tweet = [TwitterManager new];
-        NSLog(@"from VC: %@", tweet.tweets);
-    }];
+
 
 }
 
+-(void)searchBarSearchButtonClicked:(UISearchBar *)searchBar
+{
+    TwitterManager *twitterMan = [[TwitterManager alloc]init];
+    twitterMan.delegate = self;
+
+    [twitterMan loadTweetsWithSearch:self.twitter andSearch:searchBar.text andCount:@"5" withSuccess:^(BOOL success, NSError *error) {
+
+    }];
+    [self.tableView reloadData];
+}
+
+
 -(void)didSearchTwitter:(NSArray *)searchTerm
 {
-    self.fullTweets = searchTerm;
-    TwitterManager *tweet = [TwitterManager new];
-    NSLog(@"from VC: %@", self.fullTweets);//this works but want to parase data on model, not here
+    //1st object
+    Twitter *twit = [searchTerm objectAtIndex:2];
+    //NSLog(@"array from delegate: %@", twit.timeStamp);
+    [self.tableView reloadData];
 }
 
 -(void)parseData:(NSArray *)inputArray
 {
-    self.fullTweets = inputArray;
-    Twitter * twit = [Twitter new];
-    NSLog(@"username: %@", twit.screeName);
+   // NSLog(@"inputArray: %@", inputArray);
+    NSMutableArray *array = [inputArray copy];
+    self.parsedTwitterArray = array;
+    NSLog(@"prseData delegate: %@", self.parsedTwitterArray);
+    [self.tableView reloadData];
 }
 
-
-- (IBAction)onButtonTap:(UIButton *)sender
-{
-//    TwitterManager *twitM = [TwitterManager new];
-//    NSLog(@"saerches: %@", twitM.tweets);
-}
 
 -(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    return self.fullTweets.count;
+    return self.parsedTwitterArray.count;
 }
+
+
 -(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-
     TweetCell *cell = [tableView dequeueReusableCellWithIdentifier:kCell forIndexPath:indexPath];
-    Twitter *twit = [self.fullTweets objectAtIndex:indexPath.row];
+    Twitter *twit = [self.parsedTwitterArray objectAtIndex:indexPath.row];
     cell.screenName.text = twit.screeName;
-    cell.timeLabel.text = twit.tweetID;
-    cell.textLabel.text = twit.tweetText;
+    cell.timeLabel.text = twit.timeStamp;
+    cell.textView.text = twit.tweetText;
+    cell.locationLabel.text = twit.location;
+    cell.profileImage.image = [UIImage imageWithData:twit.profileData];
+    cell.delegate = self;
 
+    self.selectedTweet = twit.tweetText;
     return cell;
 }
 
-
-#pragma mark -- helpers
-
--(void)loadTweetsWithSearch:(NSString *)search andCount:(NSString *)count withSuccess:(resultBlockWithSuccess)success
+-(void)presentReplyAlertController:(UIAlertController *)controller withTweetData:(NSString *)tweetID
 {
-    STTwitterAPI *tweet = [[STTwitterAPI alloc]init];
-    [tweet getSearchTweetsWithQuery:search geocode:nil count:count successBlock:^(NSDictionary *searchMetadata, NSArray *statuses) {
+    tweetID = self.selectedTweet;
+    [self presentViewController:controller animated:YES completion:nil];
+}
 
-        if (statuses)
-        {
-            NSLog(@"results from twitter manager: %@", statuses);
-            //self.tweets = statuses;
-        }
-    } errorBlock:^(NSError *error) {
-        NSLog(@"error: %@", error);
-    }];
+-(void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    Twitter *tweet = [self.parsedTwitterArray objectAtIndex:indexPath.row];
+    self.selectedTweet = tweet.tweetText;
+    self.selectedUserID = tweet.userID;
+    self.selectedTweetID = tweet.tweetID;
+    NSLog(@"tweet: %@\n%@\n%@", self.selectedTweet, self.selectedTweetID, self.selectedUserID);
+
+
+    NSString *tweetInfo = [NSString stringWithFormat:@"Tweet: %@\nTweet ID: %@\nUser ID: %@", self.selectedTweet, self.selectedTweetID, self.selectedUserID];
+
+    UIAlertController *alert = [UIAlertController
+                                alertControllerWithTitle:@"Tweet:"
+                                message:tweetInfo
+                                preferredStyle:UIAlertControllerStyleAlert];
+
+    UIAlertAction *ok = [UIAlertAction
+                         actionWithTitle:@"Ok"
+                         style:UIAlertActionStyleDefault
+                         handler:^(UIAlertAction * action)
+                         {
+                         }];
+
+    [alert addAction:ok];
+    [self presentViewController:alert animated:YES completion:nil];
+
 }
 
 @end

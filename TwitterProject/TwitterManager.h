@@ -25,6 +25,7 @@ typedef void (^resultBlockWithSuccess)(BOOL success, NSError *error);
 @property(nonatomic, strong)NSMutableArray *tweets;
 
 -(void)loadTweetsWithSearch:(STTwitterAPI *)sttObj andSearch:(NSString *)search andCount:(NSString *)count withSuccess:(resultBlockWithSuccess)success;
--(void)parseTwitterArray:(NSArray *)tweets;
+-(NSMutableArray *)parseTwitterArray:(NSMutableArray *)tweets;
+-(NSData *)stringURLToData:(NSString *)urlString;
 
 @end
